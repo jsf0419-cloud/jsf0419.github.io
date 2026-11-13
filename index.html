@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>테니스 동호회 복식 매니저</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      background-color: #f3f6f4;
+    }
+    .tab-active {
+      color: #15803d;
+      border-bottom: 3px solid #15803d;
+      font-weight: 700;
+    }
+    .tennis-gradient {
+      background: linear-gradient(135deg, #14532d 0%, #166534 60%, #15803d 100%);
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-20 text-slate-800">
+
+  <!-- 앱 컨테이너 (모바일 중심 레이아웃) -->
+  <div class="max-w-lg mx-auto min-h-screen bg-white shadow-lg flex flex-col">
+    
+    <!-- 상단 헤더 -->
+    <header class="tennis-gradient text-white px-4 py-4 shadow-md sticky top-0 z-30">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">🎾</span>
+          <div>
+            <h1 class="text-lg font-bold leading-tight">동호회 복식 매니저</h1>
+            <p id="header-summary" class="text-xs text-lime-200">출석 0명 · 경기 0건</p>
+          </div>
+        </div>
+        <button onclick="openBackupModal()" class="text-xs bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg transition">
+          백업/초기화
+        </button>
+      </div>
+    </header>
+
+    <!-- 네비게이션 탭 -->
+    <nav class="grid grid-cols-4 bg-white border-b border-slate-200 sticky top-[68px] z-20 text-sm">
+      <button onclick="switchTab('players')" id="tab-players" class="py-3 text-center text-slate-500 transition">
+        1. 출석
+      </button>
+      <button onclick="switchTab('setup')" id="tab-setup" class="py-3 text-center text-slate-500 transition">
+        2. 팀/대진
+      </button>
+      <button onclick="switchTab('matches')" id="tab-matches" class="py-3 text-center text-slate-500 transition">
+        3. 스코어
+      </button>
+      <button onclick="switchTab('standings')" id="tab-standings" class="py-3 text-center text-slate-500 transition">
+        4. 순위
+      </button>
+    </nav>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="flex-1 p-4 space-y-4 bg-slate-50">
+      
+      <!-- [TAB 1] 회원 및 출석 관리 -->
+      <section id="view-players" class="space-y-4 hidden">
+        <!-- 회원 등록 폼 -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <h2 class="text-sm font-bold text-slate-700 mb-3">신규 회원 등록</h2>
+          <form onsubmit="addPlayer(event)" class="flex gap-2">
+            <input type="text" id="new-player-name" placeholder="이름 (예: 홍길동)" required
+              class="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600" />
+            <select id="new-player-grade" class="border border-slate-300 rounded-xl px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-600">
+              <option value="A">A조(상)</option>
+              <option value="B" selected>B조(중상)</option>
+              <option value="C">C조(중)</option>
+              <option value="D">D조(초보)</option>
+            </select>
+            <button type="submit" class="bg-green-700 hover:bg-green-800 text-white font-semibold px-4 py-2 rounded-xl text-sm transition shrink-0">
+              추가
+            </button>
+          </form>
+        </div>
+
+        <!-- 출석 체크 리스트 -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold text-slate-700">
+              오늘의 참석자 체크 <span id="attend-count-badge" class="ml-1 text-green-700 bg-green-100 px-2 py-0.5 rounded-full text-xs">0명</span>
+            </h2>
+            <div class="flex gap-1.5 text-xs">
+              <button onclick="setAllAttendance(true)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700">전체선택</button>
+              <button onclick="setAllAttendance(false)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700">전체해제</button>
+            </div>
+          </div>
+          <div id="player-list" class="divide-y divide-slate-100">
+            <!-- 동적 렌더링 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- [TAB 2] 팀 결성 & 대진표 생성 -->
+      <section id="view-setup" class="space-y-4 hidden">
+        
+        <!-- 1. KDK(로테이션 복식) 자동 대진 -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-lime-500"></span> KDK 자동 대진 (개인전 로테이션)
+            </h2>
+            <span class="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">파트너 자동 순환</span>
+          </div>
+          <p class="text-xs text-slate-500 mb-3">오늘 출석한 인원들로 파트너 중복 없이 골고루 경기를 배정합니다.</p>
+          
+          <div class="grid grid-cols-2 gap-2 mb-3">
+            <div>
+              <label class="block text-xs text-slate-600 mb-1">1인당 목표 게임 수</label>
+              <select id="kdk-games-per-player" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white">
+                <option value="2">2게임</option>
+                <option value="3">3게임</option>
+                <option value="4" selected>4게임 (추천)</option>
+                <option value="5">5게임</option>
+                <option value="6">6게임</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-600 mb-1">매칭 방식</label>
+              <select id="kdk-balance-mode" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white">
+                <option value="balanced" selected>실력(조) 밸런스</option>
+                <option value="random">완전 랜덤</option>
+              </select>
+            </div>
+          </div>
+          <button onclick="generateKDKMatches()" class="w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-2.5 rounded-xl text-sm transition shadow-sm">
+            KDK 대진표 자동 생성하기
+          </button>
+        </div>
+
+        <!-- 2. 고정 팀 결성 & 풀리그 -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-600"></span> 고정 복식 팀 결성 & 팀전
+            </h2>
+            <button onclick="autoPairTeams()" class="text-xs text-green-700 font-semibold hover:underline">랜덤 짝짓기</button>
+          </div>
+          <p class="text-xs text-slate-500 mb-3">출석자 2명을 선택해 고정 팀을 만들고 풀리그 대진을 생성합니다.</p>
+
+          <!-- 수동 팀 만들기 -->
+          <div class="flex gap-2 mb-3">
+            <select id="team-p1" class="flex-1 border border-slate-300 rounded-xl px-2 py-2 text-xs bg-white"></select>
+            <select id="team-p2" class="flex-1 border border-slate-300 rounded-xl px-2 py-2 text-xs bg-white"></select>
+            <button onclick="createFixedTeam()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-semibold shrink-0">
+              팀 추가
+            </button>
+          </div>
+
+          <!-- 결성된 팀 리스트 -->
+          <div id="team-list" class="space-y-1.5 mb-3">
+            <!-- 동적 렌더링 -->
+          </div>
+
+          <div class="flex gap-2">
+            <button onclick="generateTeamLeagueMatches()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-sm transition">
+              팀 풀리그 대진 생성
+            </button>
+            <button onclick="clearTeams()" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold">
+              팀 비우기
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. 수동 단발 매치 추가 -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <h2 class="text-sm font-bold text-slate-800 mb-2">즉석 수동 매치 추가</h2>
+          <div class="grid grid-cols-11 gap-1 items-center mb-3">
+            <div class="col-span-5 space-y-1.5">
+              <div class="text-[11px] font-bold text-green-700 text-center">A팀</div>
+              <select id="manual-a1" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white"></select>
+              <select id="manual-a2" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white"></select>
+            </div>
+            <div class="col-span-1 text-center font-bold text-xs text-slate-400">VS</div>
+            <div class="col-span-5 space-y-1.5">
+              <div class="text-[11px] font-bold text-blue-700 text-center">B팀</div>
+              <select id="manual-b1" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white"></select>
+              <select id="manual-b2" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white"></select>
+            </div>
+          </div>
+          <button onclick="addManualMatch()" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-semibold py-2 rounded-xl text-xs transition">
+            이 대진으로 1경기 추가
+          </button>
+        </div>
+      </section>
+
+      <!-- [TAB 3] 스코어보드 (경기 목록) -->
+      <section id="view-matches" class="space-y-3 hidden">
+        <div class="flex items-center justify-between bg-white p-2.5 rounded-xl shadow-sm border border-slate-100">
+          <div class="flex gap-1 text-xs">
+            <button onclick="setMatchFilter('all')" id="filter-all" class="px-3 py-1.5 rounded-lg font-semibold bg-green-700 text-white">전체</button>
+            <button onclick="setMatchFilter('pending')" id="filter-pending" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-600">진행중</button>
+            <button onclick="setMatchFilter('done')" id="filter-done" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-600">완료</button>
+          </div>
+          <button onclick="clearMatches()" class="text-xs text-red-500 hover:underline px-2">경기 전체삭제</button>
+        </div>
+
+        <div id="match-list" class="space-y-3">
+          <!-- 동적 렌더링 -->
+        </div>
+      </section>
+
+      <!-- [TAB 4] 순위 및 결과 공유 -->
+      <section id="view-standings" class="space-y-4 hidden">
+        <!-- 카톡 공유 버튼 -->
+        <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-2xl flex items-center justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-bold text-yellow-900">단톡방 결과 공유</h3>
+            <p class="text-xs text-yellow-700">오늘의 순위와 경기 스코어를 텍스트로 복사합니다.</p>
+          </div>
+          <button onclick="copyShareText()" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-bold px-3.5 py-2 rounded-xl text-xs shadow-sm shrink-0 transition">
+            📋 결과 복사
+          </button>
+        </div>
+
+        <!-- 개인 순위 / 팀 순위 전환 -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold text-slate-800">승패 및 순위표</h2>
+            <div class="flex bg-slate-100 p-0.5 rounded-lg text-xs">
+              <button onclick="setStandingMode('individual')" id="st-mode-ind" class="px-2.5 py-1 rounded-md bg-white shadow-sm font-bold text-green-700">개인 순위</button>
+              <button onclick="setStandingMode('team')" id="st-mode-team" class="px-2.5 py-1 rounded-md text-slate-600">팀 순위</button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-center">
+              <thead>
+                <tr class="border-b border-slate-200 text-slate-500">
+                  <th class="py-2 text-left pl-1">순위/이름</th>
+                  <th class="py-2">경기</th>
+                  <th class="py-2">승-무-패</th>
+                  <th class="py-2">득실</th>
+                  <th class="py-2">승률</th>
+                  <th class="py-2 pr-1">승점</th>
+                </tr>
+              </thead>
+              <tbody id="standings-tbody" class="divide-y divide-slate-100">
+                <!-- 동적 렌더링 -->
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-3">
+            * 순위 기준: 승점(승3/무1/패0) → 게임 득실차 → 다득점 순
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- 백업/초기화 모달 -->
+  <div id="backup-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-xl">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-slate-800">데이터 관리</h3>
+        <button onclick="closeBackupModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+      </div>
+      <div class="space-y-2 text-sm">
+        <button onclick="exportJSON()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold text-slate-700">
+          데이터 백업 파일 다운로드 (JSON)
+        </button>
+        <label class="block w-full py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold text-slate-700 text-center cursor-pointer">
+          백업 파일 불러오기 (JSON)
+          <input type="file" accept=".json" onchange="importJSON(event)" class="hidden" />
+        </label>
+        <button onclick="loadSampleData()" class="w-full py-2.5 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl font-semibold">
+          테스트용 샘플 회원/데이터 채우기
+        </button>
+        <button onclick="resetAllData()" class="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-semibold">
+          전체 데이터 완전 초기화
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 토스트 알림 -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-4 py-2.5 rounded-full shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-50 whitespace-nowrap">
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. 상태 관리 & 초기화
+    // ==========================================
+    const STORAGE_KEY = 'tennis_club_doubles_v1';
+    const GRADE_SCORE = { 'A': 4, 'B': 3, 'C': 2, 'D': 1 };
+    const GRADE_BADGE = {
+      'A': 'bg-red-100 text-red-700',
+      'B': 'bg-amber-100 text-amber-700',
+      'C': 'bg-blue-100 text-blue-700',
+      'D': 'bg-slate-100 text-slate-600'
+    };
+
+    let state = {
+      players: [],   // { id, name, grade, attending }
+      teams: [],     // { id, p1, p2, name }
+      matches: [],   // { id, mode, teamA: [id1, id2], teamB: [id3, id4], teamAName?, teamBName?, scoreA, scoreB, status: 'pending'|'done' }
+      activeTab: 'players',
+      matchFilter: 'all',
+      standingMode: 'individual'
+    };
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, s => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[s]));
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('opacity-0');
+      setTimeout(() => el.classList.add('opacity-0'), 2200);
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function loadState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          state = { ...state, ...parsed };
+        } catch (e) {
+          console.error('Failed to parse saved state', e);
+        }
+      } else {
+        // 첫 실행 시 바로 테스트해볼 수 있도록 기본 8명 세팅
+        seedSamplePlayers();
+      }
+    }
+
+    function seedSamplePlayers() {
+      const samples = [
+        { name: '김민수', grade: 'A', attending: true },
+        { name: '이서연', grade: 'B', attending: true },
+        { name: '박지훈', grade: 'B', attending: true },
+        { name: '최유진', grade: 'C', attending: true },
+        { name: '정우성', grade: 'A', attending: true },
+        { name: '강하늘', grade: 'C', attending: true },
+        { name: '윤아름', grade: 'D', attending: true },
+        { name: '한동훈', grade: 'B', attending: true }
+      ];
+      state.players = samples.map(s => ({ id: uid(), ...s }));
+      saveState();
+    }
+
+    // ==========================================
+    // 2. 헬퍼 함수
+    // ==========================================
+    function getPlayer(id) {
+      return state.players.find(p => p.id === id) || { id, name: '(미등록)', grade: 'C', attending: false };
+    }
+
+    function getAttendingPlayers() {
+      return state.players.filter(p => p.attending);
+    }
+
+    // ==========================================
+    // 3. 탭 & 렌더링 컨트롤러
+    // ==========================================
+    function switchTab(tabName) {
+      state.activeTab = tabName;
+      saveState();
+      render();
+    }
+
+    function render() {
+      // 탭 활성화 스타일
+      ['players', 'setup', 'matches', 'standings'].forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        const view = document.getElementById(`view-${t}`);
+        if (t === state.activeTab) {
+          btn.classList.add('tab-active');
+          btn.classList.remove('text-slate-500');
+          view.classList.remove('hidden');
+        } else {
+          btn.classList.remove('tab-active');
+          btn.classList.add('text-slate-500');
+          view.classList.add('hidden');
+        }
+      });
+
+      const attendingCount = getAttendingPlayers().length;
+      const doneMatches = state.matches.filter(m => m.status === 'done').length;
+      document.getElementById('header-summary').textContent = 
+        `출석 ${attendingCount}명 · 경기 ${doneMatches}/${state.matches.length}건 완료`;
+
+      renderPlayers();
+      renderSetup();
+      renderMatches();
+      renderStandings();
+    }
+
+    // ==========================================
+    // 4. [TAB 1] 회원 및 출석 관리
+    // ==========================================
+    function addPlayer(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('new-player-name');
+      const gradeInput = document.getElementById('new-player-grade');
+      const name = nameInput.value.trim();
+      if (!name) return;
+
+      state.players.push({
+        id: uid(),
+        name,
+        grade: gradeInput.value,
+        attending: true
+      });
+      nameInput.value = '';
+      saveState();
+      render();
+      showToast(`${name} 회원이 등록되었습니다.`);
+    }
+
+    function toggleAttendance(id) {
+      const p = state.players.find(x => x.id === id);
+      if (p) {
+        p.attending = !p.attending;
+        saveState();
+        render();
+      }
+    }
+
+    function changePlayerGrade(id, newGrade) {
+      const p = state.players.find(x => x.id === id);
+      if (p) {
+        p.grade = newGrade;
+        saveState();
+        render();
+      }
+    }
+
+    function deletePlayer(id) {
+      if (!confirm('이 회원을 명단에서 삭제할까요?')) return;
+      state.players = state.players.filter(x => x.id !== id);
+      state.teams = state.teams.filter(t => t.p1 !== id && t.p2 !== id);
+      saveState();
+      render();
+    }
+
+    function setAllAttendance(val) {
+      state.players.forEach(p => p.attending = val);
+      saveState();
+      render();
+    }
+
+    function renderPlayers() {
+      const list = document.getElementById('player-list');
+      const attendingCount = getAttendingPlayers().length;
+      document.getElementById('attend-count-badge').textContent = `${attendingCount}명`;
+
+      if (state.players.length === 0) {
+        list.innerHTML = `<p class="text-center text-xs text-slate-400 py-6">등록된 회원이 없습니다. 위에서 회원을 추가해주세요.</p>`;
+        return;
+      }
+
+      list.innerHTML = state.players.map(p => `
+        <div class="flex items-center justify-between py-2.5">
+          <label class="flex items-center gap-3 flex-1 cursor-pointer">
+            <input type="checkbox" ${p.attending ? 'checked' : ''} onchange="toggleAttendance('${p.id}')"
+              class="w-5 h-5 accent-green-700 rounded cursor-pointer" />
+            <span class="font-semibold text-sm ${p.attending ? 'text-slate-800' : 'text-slate-400 line-through'}">
+              ${escapeHtml(p.name)}
+            </span>
+          </label>
+          <div class="flex items-center gap-2">
+            <select onchange="changePlayerGrade('${p.id}', this.value)"
+              class="text-xs font-bold px-2 py-1 rounded-lg border-0 cursor-pointer ${GRADE_BADGE[p.grade]}">
+              <option value="A" ${p.grade === 'A' ? 'selected' : ''}>A조</option>
+              <option value="B" ${p.grade === 'B' ? 'selected' : ''}>B조</option>
+              <option value="C" ${p.grade === 'C' ? 'selected' : ''}>C조</option>
+              <option value="D" ${p.grade === 'D' ? 'selected' : ''}>D조</option>
+            </select>
+            <button onclick="deletePlayer('${p.id}')" class="text-slate-300 hover:text-red-500 px-1.5 text-sm">✕</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ==========================================
+    // 5. [TAB 2] 팀 결성 & 대진표 생성
+    // ==========================================
+    function renderSetup() {
+      const attendees = getAttendingPlayers();
+      const optionsHtml = attendees.length > 0
+        ? attendees.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${p.grade})</option>`).join('')
+        : `<option value="">출석자 없음</option>`;
+
+      ['team-p1', 'team-p2', 'manual-a1', 'manual-a2', 'manual-b1', 'manual-b2'].forEach((id, idx) => {
+        const sel = document.getElementById(id);
+        const prev = sel.value;
+        sel.innerHTML = optionsHtml;
+        if (attendees.some(a => a.id === prev)) {
+          sel.value = prev;
+        } else if (attendees[idx % attendees.length]) {
+          sel.value = attendees[idx % attendees.length].id;
+        }
+      });
+
+      const teamListEl = document.getElementById('team-list');
+      if (state.teams.length === 0) {
+        teamListEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-2 bg-slate-50 rounded-xl">결성된 고정 팀이 없습니다.</p>`;
+      } else {
+        teamListEl.innerHTML = state.teams.map((t, idx) => {
+          const p1 = getPlayer(t.p1);
+          const p2 = getPlayer(t.p2);
+          return `
+            <div class="flex items-center justify-between bg-emerald-50/70 border border-emerald-100 px-3 py-2 rounded-xl text-xs">
+              <div>
+                <span class="font-bold text-emerald-800 mr-1.5">${idx + 1}팀</span>
+                <span class="font-semibold text-slate-800">${escapeHtml(p1.name)}(${p1.grade}) · ${escapeHtml(p2.name)}(${p2.grade})</span>
+              </div>
+              <button onclick="removeTeam('${t.id}')" class="text-slate-400 hover:text-red-500 font-bold px-1">✕</button>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function createFixedTeam() {
+      const p1Id = document.getElementById('team-p1').value;
+      const p2Id = document.getElementById('team-p2').value;
+      if (!p1Id || !p2Id) return alert('출석한 회원이 필요합니다.');
+      if (p1Id === p2Id) return alert('서로 다른 2명을 선택해주세요.');
+
+      const p1 = getPlayer(p1Id);
+      const p2 = getPlayer(p2Id);
+      state.teams.push({
+        id: uid(),
+        p1: p1Id,
+        p2: p2Id,
+        name: `${p1.name}·${p2.name}`
+      });
+      saveState();
+      render();
+      showToast(`${p1.name}·${p2.name} 팀이 결성되었습니다.`);
+    }
+
+    function autoPairTeams() {
+      const attendees = [...getAttendingPlayers()];
+      if (attendees.length < 4) return alert('최소 4명의 출석자가 필요합니다.');
+
+      // 셔플 후 2명씩 짝짓기
+      for (let i = attendees.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [attendees[i], attendees[j]] = [attendees[j], attendees[i]];
+      }
+
+      state.teams = [];
+      for (let i = 0; i + 1 < attendees.length; i += 2) {
+        const p1 = attendees[i];
+        const p2 = attendees[i + 1];
+        state.teams.push({
+          id: uid(),
+          p1: p1.id,
+          p2: p2.id,
+          name: `${p1.name}·${p2.name}`
+        });
+      }
+      saveState();
+      render();
+      showToast(`${state.teams.length}개 팀이 랜덤으로 결성되었습니다.`);
+    }
+
+    function removeTeam(id) {
+      state.teams = state.teams.filter(t => t.id !== id);
+      saveState();
+      render();
+    }
+
+    function clearTeams() {
+      if (state.teams.length === 0) return;
+      state.teams = [];
+      saveState();
+      render();
+    }
+
+    function generateTeamLeagueMatches() {
+      if (state.teams.length < 2) return alert('풀리그를 생성하려면 최소 2개 팀이 필요합니다.');
+      if (state.matches.length > 0 && !confirm('기존 경기 목록에 팀 풀리그 대진을 추가할까요?\n(기존 경기를 지우고 싶다면 스코어 탭에서 삭제하세요)')) {
+        return;
+      }
+
+      let added = 0;
+      for (let i = 0; i < state.teams.length; i++) {
+        for (let j = i + 1; j < state.teams.length; j++) {
+          const tA = state.teams[i];
+          const tB = state.teams[j];
+          state.matches.push({
+            id: uid(),
+            mode: '팀전',
+            teamA: [tA.p1, tA.p2],
+            teamB: [tB.p1, tB.p2],
+            teamAName: tA.name,
+            teamBName: tB.name,
+            scoreA: 0,
+            scoreB: 0,
+            status: 'pending'
+          });
+          added++;
+        }
+      }
+      saveState();
+      switchTab('matches');
+      showToast(`팀 풀리그 ${added}경기가 생성되었습니다!`);
+    }
+
+    // KDK 자동 매칭 알고리즘 (파트너 중복 최소화 + 경기수 균등 + 실력 밸런스)
+    function generateKDKMatches() {
+      const attendees = getAttendingPlayers();
+      if (attendees.length < 4) return alert('KDK 대진을 만들려면 최소 4명이 출석해야 합니다.');
+
+      const gamesPerPlayer = parseInt(document.getElementById('kdk-games-per-player').value, 10);
+      const balanceMode = document.getElementById('kdk-balance-mode').value;
+
+      if (state.matches.length > 0 && !confirm('기존 경기 목록 아래에 새 KDK 대진표를 추가할까요?')) {
+        return;
+      }
+
+      const n = attendees.length;
+      const totalMatches = Math.round((n * gamesPerPlayer) / 4);
+
+      const playCount = {};
+      const partnerCount = {};
+      const opponentCount = {};
+      attendees.forEach(p => {
+        playCount[p.id] = 0;
+        partnerCount[p.id] = {};
+        opponentCount[p.id] = {};
+      });
+
+      const pairKey = (a, b) => a < b ? `${a}_${b}` : `${b}_${a}`;
+      const getCount = (map, a, b) => map[a][b] || 0;
+
+      const generated = [];
+
+      for (let m = 0; m < totalMatches; m++) {
+        // 1) 가장 경기를 적게 뛴 선수들 우선 후보 선정 (동률이면 랜덤)
+        const sorted = [...attendees].sort((a, b) => {
+          const diff = playCount[a.id] - playCount[b.id];
+          return diff !== 0 ? diff : (Math.random() - 0.5);
+        });
+
+        // 최소 경기수 그룹 + 약간의 풀에서 4명 조합을 여러 번 시도해 최적 매치 선택
+        const poolSize = Math.min(n, 6);
+        const pool = sorted.slice(0, poolSize);
+
+        let bestMatch = null;
+        let bestPenalty = Infinity;
+
+        // 4명 뽑는 조합 탐색 + 3가지 팀 분할 방식 평가
+        const trials = 120;
+        for (let t = 0; t < trials; t++) {
+          // 4명은 반드시 최소 경기수 상위 4명 근처에서 뽑되 약간의 다양성 허용
+          const candidates = [...sorted];
+          // 앞쪽 4명을 기본으로 하되, 같은 경기수 범위 내에서 셔플
+          const minGames = playCount[candidates[0].id];
+          const four = [];
+          const lowPool = candidates.filter(c => playCount[c.id] <= minGames + 1);
+          const pickFrom = lowPool.length >= 4 ? lowPool : candidates;
+          
+          // 편향된 랜덤 선택 (경기 적은 사람 가중)
+          const shuffled = [...pickFrom].sort((a, b) => {
+            const diff = playCount[a.id] - playCount[b.id];
+            return diff * 2 + (Math.random() - 0.5);
+          });
+          const p = shuffled.slice(0, 4);
+
+          // 3가지 팀 나누기: (0,1 vs 2,3), (0,2 vs 1,3), (0,3 vs 1,2)
+          const splits = [
+            [[p[0], p[1]], [p[2], p[3]]],
+            [[p[0], p[2]], [p[1], p[3]]],
+            [[p[0], p[3]], [p[1], p[2]]]
+          ];
+
+          for (const [tA, tB] of splits) {
+            let penalty = 0;
+            // 경기수 불균형 패널티
+            p.forEach(player => penalty += playCount[player.id] * 10);
+            // 파트너 중복 강한 패널티
+            penalty += getCount(partnerCount, tA[0].id, tA[1].id) * 100;
+            penalty += getCount(partnerCount, tB[0].id, tB[1].id) * 100;
+            // 상대 중복 중간 패널티
+            for (const a of tA) {
+              for (const b of tB) {
+                penalty += getCount(opponentCount, a.id, b.id) * 15;
+              }
+            }
+            // 실력 밸런스 패널티
+            if (balanceMode === 'balanced') {
+              const sumA = GRADE_SCORE[tA[0].grade] + GRADE_SCORE[tA[1].grade];
+              const sumB = GRADE_SCORE[tB[0].grade] + GRADE_SCORE[tB[1].grade];
+              penalty += Math.abs(sumA - sumB) * 25;
+            }
+            // 미세 랜덤 타이브레이커
+            penalty += Math.random() * 0.5;
+
+            if (penalty < bestPenalty) {
+              bestPenalty = penalty;
+              bestMatch = { tA, tB, players: p };
+            }
+          }
+        }
+
+        if (bestMatch) {
+          const { tA, tB, players } = bestMatch;
+          players.forEach(pl => playCount[pl.id]++);
+          
+          partnerCount[tA[0].id][tA[1].id] = (partnerCount[tA[0].id][tA[1].id] || 0) + 1;
+          partnerCount[tA[1].id][tA[0].id] = (partnerCount[tA[1].id][tA[0].id] || 0) + 1;
+          partnerCount[tB[0].id][tB[1].id] = (partnerCount[tB[0].id][tB[1].id] || 0) + 1;
+          partnerCount[tB[1].id][tB[0].id] = (partnerCount[tB[1].id][tB[0].id] || 0) + 1;
+
+          for (const a of tA) {
+            for (const b of tB) {
+              opponentCount[a.id][b.id] = (opponentCount[a.id][b.id] || 0) + 1;
+              opponentCount[b.id][a.id] = (opponentCount[b.id][a.id] || 0) + 1;
+            }
+          }
+
+          generated.push({
+            id: uid(),
+            mode: 'KDK',
+            teamA: [tA[0].id, tA[1].id],
+            teamB: [tB[0].id, tB[1].id],
+            scoreA: 0,
+            scoreB: 0,
+            status: 'pending'
+          });
+        }
+      }
+
+      state.matches.push(...generated);
+      saveState();
+      switchTab('matches');
+      showToast(`KDK ${generated.length}경기가 자동 배정되었습니다!`);
+    }
+
+    function addManualMatch() {
+      const a1 = document.getElementById('manual-a1').value;
+      const a2 = document.getElementById('manual-a2').value;
+      const b1 = document.getElementById('manual-b1').value;
+      const b2 = document.getElementById('manual-b2').value;
+
+      if (!a1 || !a2 || !b1 || !b2) return alert('출석한 회원이 최소 4명 필요합니다.');
+      const set = new Set([a1, a2, b1, b2]);
+      if (set.size < 4) return alert('4명의 선수를 모두 다르게 선택해주세요.');
+
+      state.matches.push({
+        id: uid(),
+        mode: '수동',
+        teamA: [a1, a2],
+        teamB: [b1, b2],
+        scoreA: 0,
+        scoreB: 0,
+        status: 'pending'
+      });
+      saveState();
+      switchTab('matches');
+      showToast('수동 경기가 추가되었습니다.');
+    }
+
+    // ==========================================
+    // 6. [TAB 3] 스코어보드 (경기 기록)
+    // ==========================================
+    function setMatchFilter(filter) {
+      state.matchFilter = filter;
+      renderMatches();
+    }
+
+    function updateScore(matchId, side, delta) {
+      const m = state.matches.find(x => x.id === matchId);
+      if (!m) return;
+      if (side === 'A') {
+        m.scoreA = Math.max(0, m.scoreA + delta);
+      } else {
+        m.scoreB = Math.max(0, m.scoreB + delta);
+      }
+      saveState();
+      renderMatches();
+      renderStandings();
+    }
+
+    function toggleMatchStatus(matchId) {
+      const m = state.matches.find(x => x.id === matchId);
+      if (!m) return;
+      m.status = m.status === 'done' ? 'pending' : 'done';
+      saveState();
+      render();
+      if (m.status === 'done') showToast('경기 결과가 순위에 반영되었습니다.');
+    }
+
+    function deleteMatch(matchId) {
+      if (!confirm('이 경기를 삭제할까요?')) return;
+      state.matches = state.matches.filter(x => x.id !== matchId);
+      saveState();
+      render();
+    }
+
+    function clearMatches() {
+      if (state.matches.length === 0) return;
+      if (!confirm('모든 경기 기록을 삭제할까요?')) return;
+      state.matches = [];
+      saveState();
+      render();
+    }
+
+    function renderMatches() {
+      // 필터 버튼 스타일
+      ['all', 'pending', 'done'].forEach(f => {
+        const btn = document.getElementById(`filter-${f}`);
+        if (state.matchFilter === f) {
+          btn.className = 'px-3 py-1.5 rounded-lg font-semibold bg-green-700 text-white';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-600';
+        }
+      });
+
+      const listEl = document.getElementById('match-list');
+      const filtered = state.matches.filter(m => {
+        if (state.matchFilter === 'all') return true;
+        return m.status === state.matchFilter;
+      });
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-100">
+            <p class="text-2xl mb-2">🎾</p>
+            <p class="text-sm font-semibold">표시할 경기가 없습니다.</p>
+            <p class="text-xs mt-1">[2. 팀/대진] 탭에서 대진표를 생성해보세요.</p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map((m) => {
+        const idx = state.matches.indexOf(m) + 1;
+        const a1 = getPlayer(m.teamA[0]);
+        const a2 = getPlayer(m.teamA[1]);
+        const b1 = getPlayer(m.teamB[0]);
+        const b2 = getPlayer(m.teamB[1]);
+
+        const isDone = m.status === 'done';
+        const winA = isDone && m.scoreA > m.scoreB;
+        const winB = isDone && m.scoreB > m.scoreA;
+
+        return `
+          <div class="bg-white rounded-2xl p-4 shadow-sm border ${isDone ? 'border-green-200 bg-green-50/20' : 'border-slate-200'}">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold bg-slate-800 text-white px-2 py-0.5 rounded-md">${idx}경기</span>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">${m.mode}</span>
+                ${isDone ? '<span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-green-100 text-green-700">완료</span>' : '<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">진행중</span>'}
+              </div>
+              <button onclick="deleteMatch('${m.id}')" class="text-xs text-slate-300 hover:text-red-500">삭제</button>
+            </div>
+
+            <!-- 선수 및 점수 영역 -->
+            <div class="grid grid-cols-11 items-center gap-1">
+              <!-- A팀 -->
+              <div class="col-span-4 text-center space-y-1 p-2 rounded-xl ${winA ? 'bg-green-100/70 ring-1 ring-green-400' : 'bg-slate-50'}">
+                <div class="text-xs font-bold text-slate-800 truncate">${escapeHtml(a1.name)} <span class="text-[10px] text-slate-400">${a1.grade}</span></div>
+                <div class="text-xs font-bold text-slate-800 truncate">${escapeHtml(a2.name)} <span class="text-[10px] text-slate-400">${a2.grade}</span></div>
+                ${winA ? '<div class="text-[10px] font-extrabold text-green-700">WIN 🏆</div>' : ''}
+              </div>
+
+              <!-- 스코어 컨트롤 -->
+              <div class="col-span-3 flex flex-col items-center justify-center gap-1.5">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-2xl font-black ${winA ? 'text-green-700' : 'text-slate-800'}">${m.scoreA}</span>
+                  <span class="text-sm font-bold text-slate-300">:</span>
+                  <span class="text-2xl font-black ${winB ? 'text-green-700' : 'text-slate-800'}">${m.scoreB}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="flex gap-1">
+                    <button onclick="updateScore('${m.id}', 'A', -1)" class="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 font-bold text-slate-600 text-xs">-</button>
+                    <button onclick="updateScore('${m.id}', 'A', 1)" class="w-6 h-6 rounded-md bg-green-100 hover:bg-green-200 font-bold text-green-800 text-xs">+</button>
+                  </div>
+                  <div class="flex gap-1">
+                    <button onclick="updateScore('${m.id}', 'B', -1)" class="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 font-bold text-slate-600 text-xs">-</button>
+                    <button onclick="updateScore('${m.id}', 'B', 1)" class="w-6 h-6 rounded-md bg-green-100 hover:bg-green-200 font-bold text-green-800 text-xs">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- B팀 -->
+              <div class="col-span-4 text-center space-y-1 p-2 rounded-xl ${winB ? 'bg-green-100/70 ring-1 ring-green-400' : 'bg-slate-50'}">
+                <div class="text-xs font-bold text-slate-800 truncate">${escapeHtml(b1.name)} <span class="text-[10px] text-slate-400">${b1.grade}</span></div>
+                <div class="text-xs font-bold text-slate-800 truncate">${escapeHtml(b2.name)} <span class="text-[10px] text-slate-400">${b2.grade}</span></div>
+                ${winB ? '<div class="text-[10px] font-extrabold text-green-700">WIN 🏆</div>' : ''}
+              </div>
+            </div>
+
+            <button onclick="toggleMatchStatus('${m.id}')"
+              class="mt-3 w-full py-2 rounded-xl text-xs font-bold transition ${isDone ? 'bg-slate-100 hover:bg-slate-200 text-slate-600' : 'bg-green-700 hover:bg-green-800 text-white'}">
+              ${isDone ? '점수 수정 (진행중으로 되돌리기)' : '✓ 경기 완료 및 순위 반영'}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ==========================================
+    // 7. [TAB 4] 순위 계산 & 공유
+    // ==========================================
+    function setStandingMode(mode) {
+      state.standingMode = mode;
+      renderStandings();
+    }
+
+    function calculateStandings(mode) {
+      const stats = {};
+      const ensure = (key, label) => {
+        if (!stats[key]) {
+          stats[key] = { key, label, played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+        }
+        return stats[key];
+      };
+
+      const doneMatches = state.matches.filter(m => m.status === 'done');
+
+      if (mode === 'individual') {
+        doneMatches.forEach(m => {
+          const apply = (ids, myScore, oppScore) => {
+            ids.forEach(id => {
+              const p = getPlayer(id);
+              const s = ensure(id, `${p.name} (${p.grade})`);
+              s.played++;
+              s.gf += myScore;
+              s.ga += oppScore;
+              if (myScore > oppScore) { s.w++; s.pts += 3; }
+              else if (myScore === oppScore) { s.d++; s.pts += 1; }
+              else { s.l++; }
+            });
+          };
+          apply(m.teamA, m.scoreA, m.scoreB);
+          apply(m.teamB, m.scoreB, m.scoreA);
+        });
+      } else {
+        // 팀 단위 순위 (같은 2명 조합 기준)
+        doneMatches.forEach(m => {
+          const pairKey = ids => [...ids].sort().join('_');
+          const pairName = ids => `${getPlayer(ids[0]).name}·${getPlayer(ids[1]).name}`;
+
+          const applyTeam = (ids, myScore, oppScore) => {
+            const k = pairKey(ids);
+            const s = ensure(k, pairName(ids));
+            s.played++;
+            s.gf += myScore;
+            s.ga += oppScore;
+            if (myScore > oppScore) { s.w++; s.pts += 3; }
+            else if (myScore === oppScore) { s.d++; s.pts += 1; }
+            else { s.l++; }
+          };
+          applyTeam(m.teamA, m.scoreA, m.scoreB);
+          applyTeam(m.teamB, m.scoreB, m.scoreA);
+        });
+      }
+
+      return Object.values(stats).sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts; // 승점
+        const diffA = a.gf - a.ga;
+        const diffB = b.gf - b.ga;
+        if (diffB !== diffA) return diffB - diffA; // 득실차
+        if (b.gf !== a.gf) return b.gf - a.gf;     // 다득점
+        return b.w - a.w;
+      });
+    }
+
+    function renderStandings() {
+      const indBtn = document.getElementById('st-mode-ind');
+      const teamBtn = document.getElementById('st-mode-team');
+      if (state.standingMode === 'individual') {
+        indBtn.className = 'px-2.5 py-1 rounded-md bg-white shadow-sm font-bold text-green-700';
+        teamBtn.className = 'px-2.5 py-1 rounded-md text-slate-600';
+      } else {
+        teamBtn.className = 'px-2.5 py-1 rounded-md bg-white shadow-sm font-bold text-green-700';
+        indBtn.className = 'px-2.5 py-1 rounded-md text-slate-600';
+      }
+
+      const rows = calculateStandings(state.standingMode);
+      const tbody = document.getElementById('standings-tbody');
+
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-slate-400">완료된 경기가 아직 없습니다.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map((r, i) => {
+        const diff = r.gf - r.ga;
+        const diffStr = diff > 0 ? `+${diff}` : `${diff}`;
+        const winRate = r.played > 0 ? Math.round((r.w / r.played) * 100) : 0;
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
+        return `
+          <tr class="${i < 3 ? 'bg-green-50/30' : ''}">
+            <td class="py-2.5 text-left pl-1 font-semibold text-slate-800 whitespace-nowrap">
+              <span class="inline-block w-5 text-center mr-1">${medal}</span>${escapeHtml(r.label)}
+            </td>
+            <td class="py-2.5 text-slate-600">${r.played}</td>
+            <td class="py-2.5 font-medium">${r.w}-${r.d}-${r.l}</td>
+            <td class="py-2.5 font-semibold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-slate-500'}">${diffStr}</td>
+            <td class="py-2.5 text-slate-600">${winRate}%</td>
+            <td class="py-2.5 pr-1 font-extrabold text-green-700">${r.pts}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function copyShareText() {
+      const doneMatches = state.matches.filter(m => m.status === 'done');
+      if (doneMatches.length === 0) return alert('공유할 완료된 경기가 없습니다.');
+
+      const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+      const indRows = calculateStandings('individual');
+
+      let text = `🎾 [테니스 동호회 경기 결과 - ${today}]\n\n`;
+      text += `🏆 개인 순위 (승-무-패 / 득실 / 승점)\n`;
+      indRows.forEach((r, idx) => {
+        const diff = r.gf - r.ga;
+        const diffStr = diff > 0 ? `+${diff}` : `${diff}`;
+        const rankIcon = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+        text += `${rankIcon} ${r.label} : ${r.w}승 ${r.d}무 ${r.l}패 (득실 ${diffStr}, ${r.pts}점)\n`;
+      });
+
+      text += `\n📋 경기 스코어\n`;
+      doneMatches.forEach((m, idx) => {
+        const a1 = getPlayer(m.teamA[0]).name;
+        const a2 = getPlayer(m.teamA[1]).name;
+        const b1 = getPlayer(m.teamB[0]).name;
+        const b2 = getPlayer(m.teamB[1]).name;
+        text += `${idx + 1}. ${a1}·${a2} [${m.scoreA} : ${m.scoreB}] ${b1}·${b2}\n`;
+      });
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+          .then(() => showToast('결과가 복사되었습니다! 단톡방에 붙여넣기 하세요.'))
+          .catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('결과가 복사되었습니다!');
+    }
+
+    // ==========================================
+    // 8. 백업 & 초기화 모달
+    // ==========================================
+    function openBackupModal() {
+      const m = document.getElementById('backup-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeBackupModal() {
+      const m = document.getElementById('backup-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function exportJSON() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tennis-club-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      closeBackupModal();
+    }
+
+    function importJSON(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const imported = JSON.parse(ev.target.result);
+          if (!Array.isArray(imported.players)) throw new Error('Invalid format');
+          state = { ...state, ...imported };
+          saveState();
+          render();
+          closeBackupModal();
+          showToast('백업 데이터를 불러왔습니다.');
+        } catch (err) {
+          alert('올바른 백업 파일이 아닙니다.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function loadSampleData() {
+      if (!confirm('샘플 회원 8명을 새로 불러올까요?')) return;
+      seedSamplePlayers();
+      render();
+      closeBackupModal();
+      showToast('샘플 회원 8명이 로드되었습니다.');
+    }
+
+    function resetAllData() {
+      if (!confirm('모든 회원, 팀, 경기 기록을 완전히 초기화할까요?')) return;
+      state = { players: [], teams: [], matches: [], activeTab: 'players', matchFilter: 'all', standingMode: 'individual' };
+      saveState();
+      render();
+      closeBackupModal();
+      showToast('모든 데이터가 초기화되었습니다.');
+    }
+
+    // 앱 시작
+    loadState();
+    render();
+  </script>
+</body>
+</html>
